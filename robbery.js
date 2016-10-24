@@ -130,6 +130,7 @@ function filterByStartTime(startTime) {
 function getAppropriateSchedule(schedule, duration, workingHours) {
     var bankTimeZone = parseInt(TIME_REG.exec(workingHours.from)[5]);
     var freeGangTime = freeGangSchedule(schedule, bankTimeZone, 0, duration);
+
     var bankSchedule = formatBankSchedule(workingHours, bankTimeZone);
 
     return bankSchedule.concat(freeGangTime);
@@ -162,7 +163,7 @@ function padZeros(number) {
 }
 
 function getFormatTimeFromMinute(timeInMinute, template) {
-    if (!timeInMinute) {
+    if (!timeInMinute && timeInMinute !== 0) {
         return '';
     }
     var dayDuration = 60 * 24;
