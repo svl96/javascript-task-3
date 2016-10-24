@@ -8,7 +8,7 @@ exports.isStar = true;
 
 var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
 
-var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3 };
+var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
 var daysArray = ['ПН', 'ВТ', 'СР'];
 
 function timeToMinute(time, baseTimeZone) {
