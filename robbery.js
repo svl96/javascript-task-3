@@ -4,11 +4,11 @@
  * Сделано задание на звездочку
  * Реализовано оба метода и tryLater
  */
-exports.isStar = false;
+exports.isStar = true;
 
 var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
 
-var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2 };
+var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3 };
 var daysArray = ['ПН', 'ВТ', 'СР'];
 
 function timeToMinute(time, baseTimeZone) {
@@ -129,7 +129,7 @@ function getAppropriateSchedule(schedule, duration, workingHours) {
     var bankTimeZone = parseInt(TIME_REG.exec(workingHours.from)[5]);
     var freeGangTime = freeGangSchedule(schedule, bankTimeZone, 0, duration);
     var bankSchedule = formatBankSchedule(workingHours, bankTimeZone);
-
+    console.info(freeGangTime);
     return bankSchedule.concat(freeGangTime);
 }
 
