@@ -129,7 +129,7 @@ function getAppropriateSchedule(schedule, duration, workingHours) {
     var bankTimeZone = parseInt(TIME_REG.exec(workingHours.from)[5]);
     var freeGangTime = freeGangSchedule(schedule, bankTimeZone, 0, duration);
     var bankSchedule = formatBankSchedule(workingHours, bankTimeZone);
-    console.info(freeGangTime);
+
     return bankSchedule.concat(freeGangTime);
 }
 
