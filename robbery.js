@@ -11,6 +11,8 @@ var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
 var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
 var daysArray = ['ПН', 'ВТ', 'СР'];
 
+var deadline = 24 * 60 * daysArray.length - 1;
+
 function timeToMinute(time, baseTimeZone) {
     var parsedTime = TIME_REG.exec(time);
     var hour = parseInt(parsedTime[3]);
@@ -47,7 +49,7 @@ function concatFreeTime(newSchedule, duration) {
 }
 
 function createGangFreeTime(gang, duration) {
-    var end = daysArray.length * 24 * 60;
+    var end = deadline;
     var busyTime = Object.keys(gang)
         .reduce(concatSchedule(gang), [])
         .sort(compareTime);
