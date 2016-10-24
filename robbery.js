@@ -94,7 +94,7 @@ function getBankScheduleForWeek(workingHours) {
 }
 
 function formatBankSchedule(workingHours, timeZone) {
-    var weekWorkingHours = Object.keys(days).map(getBankScheduleForWeek(workingHours));
+    var weekWorkingHours = daysArray.map(getBankScheduleForWeek(workingHours));
 
     return weekWorkingHours.map(getFormatSchedule(timeZone));
 }
