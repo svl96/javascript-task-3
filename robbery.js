@@ -4,21 +4,26 @@
  * Сделано задание на звездочку
  * Реализовано оба метода и tryLater
  */
+
 exports.isStar = true;
 
+var MINUTE_IN_HOUR = 60;
+var HOUR_IN_DAY = 24;
 var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
-var DEADLINE = 24 * 60 * 3;
+
 var daysInWeek = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
 var bankWorkingDays = ['ПН', 'ВТ', 'СР'];
+var deadLine = MINUTE_IN_HOUR * HOUR_IN_DAY * bankWorkingDays.length;
 
 function getTimeInMinute(time, baseTimeZone) {
     var parsedTime = TIME_REG.exec(time);
+    var day = parsedTime[2];
     var hour = parseInt(parsedTime[3], 10);
     var minute = parseInt(parsedTime[4], 10);
     var timeZone = baseTimeZone - parseInt(parsedTime[5], 10);
-    var timeInMinute = minute + hour * 60 + timeZone * 60;
-    if (daysInWeek.hasOwnProperty(parsedTime[2])) {
-        timeInMinute += (daysInWeek[parsedTime[2]]) * 24 * 60;
+    var timeInMinute = minute + hour * MINUTE_IN_HOUR + timeZone * MINUTE_IN_HOUR;
+    if (daysInWeek.hasOwnProperty(day)) {
+        timeInMinute += (daysInWeek[day]) * HOUR_IN_DAY * MINUTE_IN_HOUR;
     }
 
     return timeInMinute;
@@ -55,8 +60,8 @@ function getGangFreeSchedule(gangSchedule, bankTimeZone, duration) {
         .sort(compareScheduleRecords);
     var freeTime = [];
     var finish = busyTime.reduce(concatFreeTime(freeTime, duration), 0);
-    if (finish + duration <= DEADLINE) {
-        freeTime.push({ from: finish, to: DEADLINE });
+    if (finish + duration <= deadLine) {
+        freeTime.push({ from: finish, to: deadLine });
     }
 
     return freeTime;
@@ -158,16 +163,15 @@ function getFormatTimeFromMinute(timeInMinute, template) {
     if (!timeInMinute && timeInMinute !== 0) {
         return '';
     }
-    var dayDuration = 60 * 24;
-    var hourDuration = 60;
-    var dayCount = getCountOfDuration(timeInMinute, dayDuration);
+    var minuteInDay = HOUR_IN_DAY * MINUTE_IN_HOUR;
+    var dayCount = getCountOfDuration(timeInMinute, minuteInDay);
     if (dayCount) {
-        timeInMinute -= dayDuration * dayCount;
+        timeInMinute -= minuteInDay * dayCount;
     }
-    var hourCount = getCountOfDuration(timeInMinute, hourDuration);
+    var hourCount = getCountOfDuration(timeInMinute, MINUTE_IN_HOUR);
     var minuteCount = timeInMinute;
     if (hourCount) {
-        minuteCount -= hourDuration * hourCount;
+        minuteCount -= MINUTE_IN_HOUR * hourCount;
     }
 
     return template
@@ -218,7 +222,7 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
          * @returns {Boolean}
          */
         tryLater: function () {
-            robbingTime += 30;
+            robbingTime += MINUTE_IN_HOUR / 2;
             var newMoment = getTheMoment(formatSchedule, robbingTime, duration);
             if (newMoment) {
                 moment = newMoment;
