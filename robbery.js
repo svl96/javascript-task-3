@@ -7,77 +7,71 @@
 exports.isStar = true;
 
 var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
+var DEADLINE = 24 * 60 * 3;
+var daysInWeek = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
+var bankWorkingDays = ['ПН', 'ВТ', 'СР'];
 
-var days = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
-var daysArray = ['ПН', 'ВТ', 'СР'];
-
-var deadline = 24 * 60 * daysArray.length - 1;
-
-function timeToMinute(time, baseTimeZone) {
+function getTimeInMinute(time, baseTimeZone) {
     var parsedTime = TIME_REG.exec(time);
-    var hour = parseInt(parsedTime[3]);
-    var minute = parseInt(parsedTime[4]);
-    var timeZone = baseTimeZone - parseInt(parsedTime[5]);
-    var inMinute = minute + hour * 60 + timeZone * 60;
-    if (days.hasOwnProperty(parsedTime[2])) {
-        inMinute += (days[parsedTime[2]]) * 24 * 60;
+    var hour = parseInt(parsedTime[3], 10);
+    var minute = parseInt(parsedTime[4], 10);
+    var timeZone = baseTimeZone - parseInt(parsedTime[5], 10);
+    var timeInMinute = minute + hour * 60 + timeZone * 60;
+    if (daysInWeek.hasOwnProperty(parsedTime[2])) {
+        timeInMinute += (daysInWeek[parsedTime[2]]) * 24 * 60;
     }
 
-    return inMinute;
+    return timeInMinute;
 }
 
-function getFormatSchedule(bankTimeZone) {
+function formatScheduleRecord(bankTimeZone) {
     return function (schedule) {
-        var fromInMinute = timeToMinute(schedule.from, bankTimeZone);
-        var toInMinute = timeToMinute(schedule.to, bankTimeZone);
-
-        return { from: fromInMinute, to: toInMinute };
+        return {
+            from: getTimeInMinute(schedule.from, bankTimeZone),
+            to: getTimeInMinute(schedule.to, bankTimeZone)
+        };
     };
 }
 
 function concatFreeTime(newSchedule, duration) {
-    return function (finish, curr) {
-        if (curr.from >= finish + duration) {
-            newSchedule.push({ from: finish, to: curr.from });
+    return function (freeTimeStart, currentBusyTime) {
+        if (currentBusyTime.from >= freeTimeStart + duration) {
+            newSchedule.push({ from: freeTimeStart, to: currentBusyTime.from });
 
-            return curr.to;
+            return currentBusyTime.to;
         }
-        finish = curr.to > finish ? curr.to : finish;
+        freeTimeStart = Math.max(freeTimeStart, currentBusyTime.to);
 
-        return finish;
+        return freeTimeStart;
     };
 }
 
-function createGangFreeTime(gang, duration) {
-    var end = deadline;
-    var busyTime = Object.keys(gang)
-        .reduce(concatSchedule(gang), [])
-        .sort(compareTime);
+function getGangFreeSchedule(gangSchedule, bankTimeZone, duration) {
+    var formattedSchedule = Object
+        .keys(gangSchedule)
+        .reduce(getFormattedRobberSchedule(gangSchedule, bankTimeZone), {});
+    var busyTime = Object.keys(formattedSchedule)
+        .reduce(concatSchedule(formattedSchedule), [])
+        .sort(compareScheduleRecords);
     var freeTime = [];
     var finish = busyTime.reduce(concatFreeTime(freeTime, duration), 0);
-    if (finish + duration <= end) {
-        freeTime.push({ from: finish, to: end });
+    if (finish + duration <= DEADLINE) {
+        freeTime.push({ from: finish, to: DEADLINE });
     }
 
     return freeTime;
 }
 
-function robberSchedule(schedule, bankTimeZone) {
-    return function (acc, robber) {
-        acc[robber] = schedule[robber].map(getFormatSchedule(bankTimeZone));
+function getFormattedRobberSchedule(schedule, bankTimeZone) {
+    return function (formatSchedule, robber) {
+        formatSchedule[robber] = schedule[robber].map(formatScheduleRecord(bankTimeZone));
 
-        return acc;
+        return formatSchedule;
     };
 }
 
-function freeGangSchedule(schedule, bankTimeZone, duration) {
-    var formatedSchedule = Object.keys(schedule).reduce(robberSchedule(schedule, bankTimeZone), {});
-
-    return createGangFreeTime(formatedSchedule, duration);
-}
-
-function compareTime(date1, date2) {
-    return date1.from - date2.from;
+function compareScheduleRecords(rec1, rec2) {
+    return rec1.from - rec2.from;
 }
 
 function concatSchedule(gang) {
@@ -88,33 +82,32 @@ function concatSchedule(gang) {
 
 function getBankScheduleForWeek(workingHours) {
     return function (weekDay) {
-        var dayFrom = weekDay + ' ' + workingHours.from;
-        var dayTo = weekDay + ' ' + workingHours.to;
-
-        return { from: dayFrom, to: dayTo };
+        return {
+            from: weekDay + ' ' + workingHours.from,
+            to: weekDay + ' ' + workingHours.to
+        };
     };
 }
 
 function formatBankSchedule(workingHours, timeZone) {
-    var weekWorkingHours = daysArray.map(getBankScheduleForWeek(workingHours));
+    var weekWorkingHours = bankWorkingDays.map(getBankScheduleForWeek(workingHours));
 
-    return weekWorkingHours.map(getFormatSchedule(timeZone));
+    return weekWorkingHours.map(formatScheduleRecord(timeZone));
 }
 
-function findFirstMoment(sortedSchedule, duration, startTime) {
-    var endGrub = startTime;
-
+function findStartRobbingTime(sortedSchedule, duration, robbingStartTime) {
+    var robbingEndTime = robbingStartTime;
     for (var i = 0; i < sortedSchedule.length; i++) {
-        var start = sortedSchedule[i].from;
-        var end = sortedSchedule[i].to;
-        var finish = end < endGrub ? end : endGrub;
-        if (start + duration <= finish) {
-            return start;
+        var robberStartTime = sortedSchedule[i].from;
+        var robberStopTime = sortedSchedule[i].to;
+        var timeToStop = Math.min(robberStopTime, robbingEndTime);
+        if (robberStartTime + duration <= timeToStop) {
+            return robberStartTime;
         }
-        endGrub = end > endGrub ? end : endGrub;
+        robbingEndTime = Math.max(robberStopTime, robbingEndTime);
     }
 
-    return false;
+    return null;
 }
 
 function filterByStartTime(startTime) {
@@ -128,20 +121,19 @@ function filterByStartTime(startTime) {
 }
 
 function getAppropriateSchedule(schedule, duration, workingHours) {
-    var bankTimeZone = parseInt(TIME_REG.exec(workingHours.from)[5]);
-    var freeGangTime = freeGangSchedule(schedule, bankTimeZone, 0, duration);
-
+    var bankTimeZone = parseInt(TIME_REG.exec(workingHours.from)[5], 10);
+    var freeGangTime = getGangFreeSchedule(schedule, bankTimeZone, duration);
     var bankSchedule = formatBankSchedule(workingHours, bankTimeZone);
 
     return bankSchedule.concat(freeGangTime);
 }
 
-function getTheMoment(schedule, startTime, duration) {
+function getTheMoment(schedule, startRobbingTime, duration) {
     var sortedSchedule = schedule
-        .filter(filterByStartTime(startTime))
-        .sort(compareTime);
+        .filter(filterByStartTime(startRobbingTime))
+        .sort(compareScheduleRecords);
 
-    return findFirstMoment(sortedSchedule, duration, startTime);
+    return findStartRobbingTime(sortedSchedule, duration, startRobbingTime);
 }
 
 function getCountOfDuration(timeInMinute, duration) {
@@ -154,7 +146,7 @@ function getCountOfDuration(timeInMinute, duration) {
     return count;
 }
 
-function padZeros(number) {
+function getFormatNumber(number) {
     if (number < 10) {
         return '0' + number;
     }
@@ -179,9 +171,9 @@ function getFormatTimeFromMinute(timeInMinute, template) {
     }
 
     return template
-        .replace(/%DD/g, daysArray[dayCount])
-        .replace(/%HH/g, padZeros(hourCount))
-        .replace(/%MM/g, padZeros(minuteCount));
+        .replace(/%DD/g, bankWorkingDays[dayCount])
+        .replace(/%HH/g, getFormatNumber(hourCount))
+        .replace(/%MM/g, getFormatNumber(minuteCount));
 }
 
 /**
@@ -196,8 +188,8 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
     console.info(schedule, duration, workingHours);
     var formatSchedule = getAppropriateSchedule(schedule, duration, workingHours);
     var moment = getTheMoment(formatSchedule, 0, duration);
-    var exist = moment !== false;
-    var startTime = moment || 0;
+    var exist = moment !== null;
+    var robbingTime = moment || 0;
 
     return {
 
@@ -226,14 +218,14 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
          * @returns {Boolean}
          */
         tryLater: function () {
-            startTime += 30;
-            var newMoment = getTheMoment(formatSchedule, startTime, duration);
+            robbingTime += 30;
+            var newMoment = getTheMoment(formatSchedule, robbingTime, duration);
             if (newMoment) {
                 moment = newMoment;
-                startTime = newMoment;
+                robbingTime = newMoment;
             }
 
-            return newMoment !== false;
+            return newMoment !== null;
         }
     };
 };
