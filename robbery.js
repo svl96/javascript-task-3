@@ -7,26 +7,50 @@
 
 exports.isStar = true;
 
-var MINUTE_IN_HOUR = 60;
-var HOUR_IN_DAY = 24;
+var MINUTES_IN_HOUR = 60;
+var HOURS_IN_DAY = 24;
 var TIME_REG = /(([А-Я][А-Я]) )?(\d\d):(\d\d)\+(\d+)/;
 
-var daysInWeek = { 'ПН': 0, 'ВТ': 1, 'СР': 2, 'ЧТ': 3, 'ПТ': 4, 'СБ': 5, 'ВС': 6 };
-var bankWorkingDays = ['ПН', 'ВТ', 'СР'];
-var deadLine = MINUTE_IN_HOUR * HOUR_IN_DAY * bankWorkingDays.length;
+var weekInfo = [
+    { name: 'ПН', isWorking: true },
+    { name: 'ВТ', isWorking: true },
+    { name: 'СР', isWorking: true },
+    { name: 'ЧТ', isWorking: false },
+    { name: 'ПТ', isWorking: false },
+    { name: 'СБ', isWorking: false },
+    { name: 'ВС', isWorking: false }
+];
 
-function getTimeInMinute(time, baseTimeZone) {
-    var parsedTime = TIME_REG.exec(time);
-    var day = parsedTime[2];
-    var hour = parseInt(parsedTime[3], 10);
-    var minute = parseInt(parsedTime[4], 10);
-    var timeZone = baseTimeZone - parseInt(parsedTime[5], 10);
-    var timeInMinute = minute + hour * MINUTE_IN_HOUR + timeZone * MINUTE_IN_HOUR;
-    if (daysInWeek.hasOwnProperty(day)) {
-        timeInMinute += (daysInWeek[day]) * HOUR_IN_DAY * MINUTE_IN_HOUR;
+var deadLine = weekInfo.reduce(function (acc, dayInfo) {
+    if (dayInfo.isWorking) {
+        acc += HOURS_IN_DAY * MINUTES_IN_HOUR;
     }
 
-    return timeInMinute;
+    return acc;
+}, 0);
+
+function getParsedTime(time) {
+    var regResult = TIME_REG.exec(time);
+
+    return {
+        day: regResult[2],
+        hour: parseInt(regResult[3], 10),
+        minute: parseInt(regResult[4], 10),
+        timeZone: parseInt(regResult[5], 10)
+    };
+}
+
+function getTimeInMinute(time, baseTimeZone) {
+    var parsedTime = getParsedTime(time);
+    var diffTimeZones = baseTimeZone - parsedTime.timeZone;
+    var dayNumber = weekInfo.map(function (dayInfo) {
+        return dayInfo.name;
+    }).indexOf(parsedTime.day);
+
+    return parsedTime.minute +
+         parsedTime.hour * MINUTES_IN_HOUR +
+         diffTimeZones * MINUTES_IN_HOUR +
+         dayNumber * HOURS_IN_DAY * MINUTES_IN_HOUR;
 }
 
 function formatScheduleRecord(bankTimeZone) {
@@ -52,8 +76,7 @@ function concatFreeTime(newSchedule, duration) {
 }
 
 function getGangFreeSchedule(gangSchedule, bankTimeZone, duration) {
-    var formattedSchedule = Object
-        .keys(gangSchedule)
+    var formattedSchedule = Object.keys(gangSchedule)
         .reduce(getFormattedRobberSchedule(gangSchedule, bankTimeZone), {});
     var busyTime = Object.keys(formattedSchedule)
         .reduce(concatSchedule(formattedSchedule), [])
@@ -86,16 +109,20 @@ function concatSchedule(gang) {
 }
 
 function getBankScheduleForWeek(workingHours) {
-    return function (weekDay) {
-        return {
-            from: weekDay + ' ' + workingHours.from,
-            to: weekDay + ' ' + workingHours.to
-        };
+    return function (bankSchedule, dayInfo) {
+        if (dayInfo.isWorking) {
+            bankSchedule.push({
+                from: dayInfo.name + ' ' + workingHours.from,
+                to: dayInfo.name + ' ' + workingHours.to
+            });
+        }
+
+        return bankSchedule;
     };
 }
 
 function formatBankSchedule(workingHours, timeZone) {
-    var weekWorkingHours = bankWorkingDays.map(getBankScheduleForWeek(workingHours));
+    var weekWorkingHours = weekInfo.reduce(getBankScheduleForWeek(workingHours), []);
 
     return weekWorkingHours.map(formatScheduleRecord(timeZone));
 }
@@ -111,8 +138,6 @@ function findStartRobbingTime(sortedSchedule, duration, robbingStartTime) {
         }
         robbingEndTime = Math.max(robberStopTime, robbingEndTime);
     }
-
-    return null;
 }
 
 function filterByStartTime(startTime) {
@@ -163,21 +188,21 @@ function getFormatTimeFromMinute(timeInMinute, template) {
     if (!timeInMinute && timeInMinute !== 0) {
         return '';
     }
-    var minuteInDay = HOUR_IN_DAY * MINUTE_IN_HOUR;
-    var dayCount = getCountOfDuration(timeInMinute, minuteInDay);
-    if (dayCount) {
-        timeInMinute -= minuteInDay * dayCount;
+    var minutesInDay = HOURS_IN_DAY * MINUTES_IN_HOUR;
+    var daysCount = getCountOfDuration(timeInMinute, minutesInDay);
+    if (daysCount) {
+        timeInMinute -= minutesInDay * daysCount;
     }
-    var hourCount = getCountOfDuration(timeInMinute, MINUTE_IN_HOUR);
-    var minuteCount = timeInMinute;
-    if (hourCount) {
-        minuteCount -= MINUTE_IN_HOUR * hourCount;
+    var hoursCount = getCountOfDuration(timeInMinute, MINUTES_IN_HOUR);
+    var minutesCount = timeInMinute;
+    if (hoursCount) {
+        minutesCount -= MINUTES_IN_HOUR * hoursCount;
     }
 
     return template
-        .replace(/%DD/g, bankWorkingDays[dayCount])
-        .replace(/%HH/g, getFormatNumber(hourCount))
-        .replace(/%MM/g, getFormatNumber(minuteCount));
+        .replace(/%DD/g, weekInfo[daysCount].name)
+        .replace(/%HH/g, getFormatNumber(hoursCount))
+        .replace(/%MM/g, getFormatNumber(minutesCount));
 }
 
 /**
@@ -192,7 +217,6 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
     console.info(schedule, duration, workingHours);
     var formatSchedule = getAppropriateSchedule(schedule, duration, workingHours);
     var moment = getTheMoment(formatSchedule, 0, duration);
-    var exist = moment !== null;
     var robbingTime = moment || 0;
 
     return {
@@ -202,7 +226,7 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
          * @returns {Boolean}
          */
         exists: function () {
-            return exist;
+            return moment === 0 || Boolean(moment);
         },
 
         /**
@@ -222,14 +246,14 @@ exports.getAppropriateMoment = function (schedule, duration, workingHours) {
          * @returns {Boolean}
          */
         tryLater: function () {
-            robbingTime += MINUTE_IN_HOUR / 2;
+            robbingTime += MINUTES_IN_HOUR / 2;
             var newMoment = getTheMoment(formatSchedule, robbingTime, duration);
             if (newMoment) {
                 moment = newMoment;
                 robbingTime = newMoment;
             }
 
-            return newMoment !== null;
+            return newMoment === 0 || Boolean(newMoment);
         }
     };
 };
